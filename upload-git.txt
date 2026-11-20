@@ -1,0 +1,7 @@
+cd "/Users/prayutzaiyoisakunlerd/Downloads/โปรเจ็คน้องจุ๊/OCR"
+git add -A && git commit -m "Update" && git push
+sleep 10
+ID=$(gh run list --repo AliyahAunJo/python-ocr --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch $ID --repo AliyahAunJo/python-ocr --exit-status
+rm -rf exe_download && mkdir exe_download
+gh run download $ID --repo AliyahAunJo/python-ocr -n ReceiptOCR_win64 -D exe_download
