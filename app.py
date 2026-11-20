@@ -10,23 +10,6 @@ from tkinter import filedialog, messagebox, ttk
 
 import receipt_core as core
 
-
-def app_dir():
-    """โฟลเดอร์ที่วางไฟล์ .exe (หรือ app.py ตอนรันด้วย Python)"""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
-
-
-def xlsx_path_for(pdf):
-    """ไฟล์ Excel ผลลัพธ์ วางข้าง .exe (ถ้าเขียนไม่ได้ ใช้โฟลเดอร์เดียวกับ PDF แทน)"""
-    pdf = Path(pdf)
-    d = app_dir()
-    if not os.access(d, os.W_OK):
-        d = pdf.parent
-    return d / (pdf.stem + ".xlsx")
-
-
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
     Root = TkinterDnD.Tk
@@ -133,7 +116,7 @@ class App(Root):
                 self.q.put(("status", f"กำลังโหลดโมเดล OCR … ({name})"))
                 core.get_engine()
                 total = core.count_pages(f)
-                out = xlsx_path_for(f)
+                out = Path(f).with_suffix(".xlsx")
 
                 def prog(page, n, r, name=name, fi=fi):
                     self.q.put(("row", page, r))
@@ -143,7 +126,7 @@ class App(Root):
                 path, rows = core.process_pdf(f, out, prog)
                 self.q.put(("done", str(path), len(rows)))
             except PermissionError:
-                self.q.put(("error", f"บันทึกไม่ได้: ไฟล์ Excel '{xlsx_path_for(f).name}' เปิดค้างอยู่ กรุณาปิดก่อนแล้วลองใหม่"))
+                self.q.put(("error", f"บันทึกไม่ได้: ไฟล์ Excel '{Path(f).with_suffix('.xlsx').name}' เปิดค้างอยู่ กรุณาปิดก่อนแล้วลองใหม่"))
             except Exception as e:  # noqa
                 self.q.put(("error", f"{name}: {e}"))
         self.q.put(("end",))
