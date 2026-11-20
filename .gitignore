@@ -8,3 +8,4 @@ dist/
 *.xlsx
 exe_download/
 .DS_Store
+*.zip
