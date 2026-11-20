@@ -1,0 +1,43 @@
+name: Build Windows exe
+
+on:
+  workflow_dispatch:      # กดรันเองที่แท็บ Actions
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Smoke test OCR engine (loads bundled models)
+        run: python -c "import receipt_core as c; c.get_engine(); print('OCR engine OK')"
+
+      - name: Build exe
+        run: >
+          pyinstaller --noconfirm --clean --windowed --name ReceiptOCR
+          --add-data "models;models"
+          --collect-all rapidocr --collect-all onnxruntime
+          --collect-all tkinterdnd2 --collect-all pypdfium2_raw --collect-all pypdfium2
+          --exclude-module matplotlib --exclude-module scipy --exclude-module pandas
+          --exclude-module IPython --exclude-module pytest
+          app.py
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/ReceiptOCR -DestinationPath ReceiptOCR_win64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReceiptOCR_win64
+          path: ReceiptOCR_win64.zip
