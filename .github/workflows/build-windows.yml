@@ -33,6 +33,11 @@ jobs:
           --exclude-module IPython --exclude-module pytest
           app.py
 
+      - name: Remove bundled UCRT (use the system one; avoids 0xc000007b)
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/ReceiptOCR/_internal -Include ucrtbase.dll,api-ms-win-crt-*.dll -Recurse | Remove-Item -Force -Verbose
+
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist/ReceiptOCR -DestinationPath ReceiptOCR_win64.zip

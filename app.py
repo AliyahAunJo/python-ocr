@@ -60,8 +60,8 @@ class App(Root):
 
         cols = ["page"] + [k for k, _ in core.FIELDS]
         self.tree = ttk.Treeview(self, columns=cols, show="headings", height=12)
-        widths = {"page": 50, "receipt_no": 110, "delivery_date": 110, "receipt_date": 130,
-                  "doc_no": 100, "payer": 180, "amount": 90}
+        widths = {"page": 50, "delivery_date": 110, "receipt_date": 130,
+                  "doc_no": 110, "payer": 180, "amount": 90}
         self.tree.heading("page", text="หน้า")
         self.tree.column("page", width=50, anchor="center")
         for k, h in core.FIELDS:

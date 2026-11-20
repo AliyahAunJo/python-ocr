@@ -5,11 +5,10 @@ import re
 from pathlib import Path
 
 DATE_RE = re.compile(r"(\d{1,2})\s*-\s*([ก-๙]+(?:\.[ก-๙]+)*)\.?\s*-\s*(\d{2,4})")
-DOC_RE = re.compile(r"(?<![\d/])(\d{1,5})\s*/\s*(\d{1,7})(?![\d/])")
 RCPT_RE = re.compile(r"([0-9A-Za-z]{2})\s*/\s*(\d{1,3})\s*/\s*(\d{3,7})")
 AMOUNT_RE = re.compile(r"^\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?$|^\d+(?:\.\d{1,2})?$")
 
-FIELDS = [("receipt_no", "เลขที่ใบเสร็จ"), ("delivery_date", "วันที่ใบส่งของ"),
+FIELDS = [("delivery_date", "วันที่ใบส่งของ"),
           ("receipt_date", "วันที่ใบเสร็จรับเงิน"), ("doc_no", "เลขที่"),
           ("payer", "ได้รับเงินจาก"), ("amount", "จำนวนเงิน")]
 
@@ -102,15 +101,15 @@ def clean_name(s):
 
 def parse_page(tokens):
     toks = sorted(tokens, key=lambda t: (t["y"], t["x"]))
-    res = {"receipt_no": "", "delivery_date": "", "receipt_date": "", "doc_no": "", "payer": "", "amount": None}
+    res = {"delivery_date": "", "receipt_date": "", "doc_no": "", "payer": "", "amount": None}
 
-    # เลขที่ใบเสร็จ (ฝั่งซ้าย เช่น 69/1/00325) แก้ตัวอักษรที่ OCR อ่านเพี้ยน G->6, O->0
+    # เลขที่ (เลขฝั่งซ้ายของใบเสร็จ เช่น 69/1/00325) แก้ตัวอักษรที่ OCR อ่านเพี้ยน G->6, O->0
     for t in toks:
         if t["x"] < 0.4 and t["y"] < 0.25:
             m = RCPT_RE.search(t["text"])
             if m:
                 yy = m.group(1).translate(str.maketrans("GgOoIl", "690011"))
-                res["receipt_no"] = f"{yy}/{m.group(2)}/{m.group(3)}"
+                res["doc_no"] = f"{yy}/{m.group(2)}/{m.group(3)}"
                 break
 
     # วันที่: ใบส่งของอยู่บน, ใบเสร็จรับเงินอยู่ล่าง (ฝั่งขวา)
@@ -124,14 +123,6 @@ def parse_page(tokens):
         res["delivery_date"] = dates[0]
     if len(dates) > 1:
         res["receipt_date"] = dates[1]
-
-    # เลขที่ ตัวเลข/ตัวเลข ใต้วันที่ใบส่งของ (ฝั่งขวา)
-    for t in toks:
-        if t["x"] > 0.6 and 0.10 < t["y"] < 0.22 and not DATE_RE.search(t["text"]):
-            m = DOC_RE.search(t["text"])
-            if m:
-                res["doc_no"] = f"{m.group(1)}/{m.group(2)}"
-                break
 
     # ได้รับเงินจาก
     for t in toks:
@@ -178,7 +169,7 @@ def write_excel(rows, path):
                 ws.cell(rr, j).fill = warn
         ws.cell(rr, amount_col).number_format = "#,##0.00"
         ws.cell(rr, 1).alignment = Alignment(horizontal="center")
-    for i, w in enumerate([8, 16, 18, 22, 16, 28, 14, 26], start=1):
+    for i, w in enumerate([8, 18, 22, 16, 28, 14, 26], start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "A2"
     wb.save(path)

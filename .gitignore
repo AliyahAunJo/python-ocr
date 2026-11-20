@@ -6,3 +6,5 @@ dist/
 # ไฟล์ข้อมูลจริง (ใบเสร็จ) ห้ามอัปโหลดขึ้น GitHub
 *.pdf
 *.xlsx
+exe_download/
+.DS_Store
