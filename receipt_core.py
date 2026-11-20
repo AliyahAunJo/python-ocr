@@ -147,44 +147,53 @@ def parse_page(tokens):
 
 
 def write_excel(rows, path):
+    """rows: รายการ (หน้า, ผลลัพธ์) ; ผลลัพธ์แต่ละแถวมีคีย์ "file" = ชื่อไฟล์ PDF ต้นทาง"""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
     wb = Workbook()
     ws = wb.active
     ws.title = "ใบเสร็จรับเงิน"
-    ws.append(["หน้า"] + [h for _, h in FIELDS] + ["หมายเหตุ"])
+    ws.append(["ชื่อไฟล์", "หน้า"] + [h for _, h in FIELDS] + ["หมายเหตุ"])
     for c in ws[1]:
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="1F4E78")
         c.alignment = Alignment(horizontal="center", vertical="center")
     warn = PatternFill("solid", fgColor="FFF2CC")
-    amount_col = 1 + [k for k, _ in FIELDS].index("amount") + 1
+    amount_col = 2 + [k for k, _ in FIELDS].index("amount") + 1
     for page, r in rows:
         missing = [h for k, h in FIELDS if r[k] in ("", None)]
-        ws.append([page] + [r[k] for k, _ in FIELDS] + [("ไม่พบ: " + ", ".join(missing)) if missing else ""])
+        ws.append([r.get("file", ""), page] + [r[k] for k, _ in FIELDS] + [("ไม่พบ: " + ", ".join(missing)) if missing else ""])
         rr = ws.max_row
-        for j, (k, _) in enumerate(FIELDS, start=2):
+        for j, (k, _) in enumerate(FIELDS, start=3):
             if r[k] in ("", None):
                 ws.cell(rr, j).fill = warn
         ws.cell(rr, amount_col).number_format = "#,##0.00"
-        ws.cell(rr, 1).alignment = Alignment(horizontal="center")
-    for i, w in enumerate([8, 18, 22, 16, 28, 14, 26], start=1):
+        ws.cell(rr, 2).alignment = Alignment(horizontal="center")
+    for i, w in enumerate([30, 8, 18, 22, 16, 28, 14, 26], start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "A2"
     wb.save(path)
 
 
-def process_pdf(pdf, out=None, progress=None):
-    """ประมวลผล PDF ทั้งไฟล์ คืน (path ของ Excel, rows) ; progress(หน้า, จำนวนหน้า, ผลของหน้านั้น)"""
+def read_pdf(pdf, progress=None):
+    """อ่าน PDF ทั้งไฟล์ (ยังไม่เขียน Excel) คืนรายการ (หน้า, ผลลัพธ์) ; progress(หน้า, จำนวนหน้า, ผลของหน้านั้น)"""
     pdf = Path(pdf)
-    out = Path(out) if out else pdf.with_suffix(".xlsx")
     rows = []
     for page, total, img in render_pages(pdf):
         r = parse_page(ocr_image(img))
+        r["file"] = pdf.name
         rows.append((page, r))
         if progress:
             progress(page, total, r)
+    return rows
+
+
+def process_pdf(pdf, out=None, progress=None):
+    """ประมวลผล PDF ทั้งไฟล์ คืน (path ของ Excel, rows)"""
+    pdf = Path(pdf)
+    out = Path(out) if out else pdf.with_suffix(".xlsx")
+    rows = read_pdf(pdf, progress)
     write_excel(rows, out)
     return out, rows
 

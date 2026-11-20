@@ -4,6 +4,7 @@ import queue
 import subprocess
 import sys
 import threading
+from datetime import datetime
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -58,10 +59,12 @@ class App(Root):
         self.progress = ttk.Progressbar(self, mode="determinate")
         self.progress.pack(fill="x", padx=14)
 
-        cols = ["page"] + [k for k, _ in core.FIELDS]
+        cols = ["file", "page"] + [k for k, _ in core.FIELDS]
         self.tree = ttk.Treeview(self, columns=cols, show="headings", height=12)
         widths = {"page": 50, "delivery_date": 110, "receipt_date": 130,
                   "doc_no": 110, "payer": 180, "amount": 90}
+        self.tree.heading("file", text="ชื่อไฟล์")
+        self.tree.column("file", width=170, anchor="w")
         self.tree.heading("page", text="หน้า")
         self.tree.column("page", width=50, anchor="center")
         for k, h in core.FIELDS:
@@ -110,25 +113,41 @@ class App(Root):
         threading.Thread(target=self._work, args=(files,), daemon=True).start()
 
     def _work(self, files):
+        """อ่านทุกไฟล์ แล้วรวมเป็น Excel ไฟล์เดียว (ถ้าเลือกไฟล์เดียว ใช้ชื่อเดียวกับ PDF)"""
+        if len(files) == 1:
+            out = Path(files[0]).with_suffix(".xlsx")
+        else:
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out = Path(files[0]).parent / f"รวมใบเสร็จ_{len(files)}ไฟล์_{stamp}.xlsx"
+        all_rows = []
+        try:
+            self.q.put(("status", "กำลังโหลดโมเดล OCR …"))
+            core.get_engine()
+        except Exception as e:  # noqa
+            self.q.put(("error", f"โหลดโมเดลไม่ได้: {e}"))
+            self.q.put(("end",))
+            return
         for fi, f in enumerate(files, 1):
             name = Path(f).name
             try:
-                self.q.put(("status", f"กำลังโหลดโมเดล OCR … ({name})"))
-                core.get_engine()
                 total = core.count_pages(f)
-                out = Path(f).with_suffix(".xlsx")
 
                 def prog(page, n, r, name=name, fi=fi):
                     self.q.put(("row", page, r))
                     self.q.put(("prog", page, n, f"[{fi}/{len(files)}] {name}: หน้า {page}/{n}"))
 
                 self.q.put(("status", f"กำลังอ่าน {name} ({total} หน้า)"))
-                path, rows = core.process_pdf(f, out, prog)
-                self.q.put(("done", str(path), len(rows)))
-            except PermissionError:
-                self.q.put(("error", f"บันทึกไม่ได้: ไฟล์ Excel '{Path(f).with_suffix('.xlsx').name}' เปิดค้างอยู่ กรุณาปิดก่อนแล้วลองใหม่"))
+                all_rows += core.read_pdf(f, prog)
             except Exception as e:  # noqa
                 self.q.put(("error", f"{name}: {e}"))
+        if all_rows:
+            try:
+                core.write_excel(all_rows, out)
+                self.q.put(("done", str(out), len(all_rows)))
+            except PermissionError:
+                self.q.put(("error", f"บันทึกไม่ได้: ไฟล์ Excel '{out.name}' เปิดค้างอยู่ กรุณาปิดก่อนแล้วลองใหม่"))
+            except Exception as e:  # noqa
+                self.q.put(("error", f"บันทึกไม่ได้: {e}"))
         self.q.put(("end",))
 
     def _poll(self):
@@ -140,7 +159,7 @@ class App(Root):
                     self.status.set(m[1]); self.say(m[1])
                 elif k == "row":
                     r = m[2]
-                    vals = [m[1]] + [("" if r[f] is None else (f"{r[f]:,.2f}" if f == "amount" else r[f])) for f, _ in core.FIELDS]
+                    vals = [r.get("file", ""), m[1]] + [("" if r[f] is None else (f"{r[f]:,.2f}" if f == "amount" else r[f])) for f, _ in core.FIELDS]
                     miss = any(r[f] in ("", None) for f, _ in core.FIELDS)
                     self.tree.insert("", "end", values=vals, tags=("warn",) if miss else ())
                 elif k == "prog":
