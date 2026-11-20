@@ -33,10 +33,13 @@ jobs:
           --exclude-module IPython --exclude-module pytest
           app.py
 
-      - name: Remove bundled UCRT (use the system one; avoids 0xc000007b)
+      - name: Remove bundled system DLLs (use the ones in Windows; avoids 0xc000007b)
         shell: pwsh
         run: |
-          Get-ChildItem dist/ReceiptOCR/_internal -Include ucrtbase.dll,api-ms-win-crt-*.dll -Recurse | Remove-Item -Force -Verbose
+          # keep msvcp140*.dll (numpy needs it); remove the DLLs Windows already provides
+          Get-ChildItem dist/ReceiptOCR/_internal -File |
+            Where-Object { $_.Name -like 'api-ms-win-*.dll' -or $_.Name -ieq 'ucrtbase.dll' -or $_.Name -like 'vcruntime140*.dll' } |
+            Remove-Item -Force -Verbose
 
       - name: Zip
         shell: pwsh

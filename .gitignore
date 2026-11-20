@@ -9,3 +9,4 @@ dist/
 exe_download/
 .DS_Store
 *.zip
+ReceiptOCR_V*/
